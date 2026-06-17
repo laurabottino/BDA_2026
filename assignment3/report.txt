@@ -1,0 +1,62 @@
+
+PART #1
+The business process to be modeled in the data warehouse is a recording of stock trading during year 2024. The account statement table contains buying, selling transactions and dividends executed during the aforementioned year, while the symbols dataset provides an overview of the involved companies and the table country provides descriptive information about each one of the countries.
+The grain of the fact_transaction table is that each row must represent one transaction from the account statement file. In each row of this table, information about the ID of the transaction, its type, date, symbol and quantity will be stored.
+In the data warehouse dimensions, it is possible to define the following hierarchies:
+1)	DIM_TIME
+Day->month->quarter->year
+2)	DIM_GEOGRAPHY
+Country->sub-region->region
+3)	DIM_SYMBOL
+Symbol->company_name->industry->sector
+
+In the star schema design every source attributed used in the analysis was assigned to a specific table, in such a way to avoid duplication of attributes across different dimensions.
+
+The fact table contains foreign keys referring to the surrogate keys of each dimension (symbol_key, transactiontype_key, time_key, geography_key). These keys establish relationships between fact_transactions and dim_time, dim_geography, dim_symbol, dim_transactiontype.
+The only numerical measure in the star schema is “unit” (in the fact_transactions table), which represents the quantity of units traded in each transaction. It is a measure because it can be aggregated for analytical purposes (e.g. sum, average, etc.). Whereas, the attribute “IDTransaction”, contained in the fact table represents a degenerate key.
+
+The first dimension in the star schema is dim_symbol, which contains the surrogate key "symbol_key", "symbol", "company_name", "sector", "industry" and "country".
+
+The second dimension is dim_geography, which, other than the surrogate key "geography_key", contains information about "country", "region" and "sub-region".
+
+The third dimension is dim_transactiontype, which contains only two attributes:the surrogate key "transactiontype_key" and "transaction_type".
+
+The last dimension is dim_time, which contains the surrogate key "time_key", "date", "day", "month", "quarter" and "year".
+
+PART #2
+The analysis starts with the import of all the needed libraries, in this specific part only pandas and matplotlib were needed. Then, all the datasets were loaded and a copy to work on was created: this allows us not to make permanent changes to the original source of our data, so that it is always possible to go back. The majority of the datasets (the symbols and the account statements csv) had “;” as a separator, while the other one (the countries dataset) had the classical “,” as a separator.
+Before starting with any relevant analysis about the dataset, it is necessary to execute some quality checks on the available data: in particular, checking for eventual Nas. The data preparation phase revealed several quality issues that required attention. From this analysis, the tables symbols and countries showed a null (in the case of symbols) or relatively low (in the case of countries) presence of Nas. However, what was remarked during this part is what follows: the transaction table showed for every attribute the same number of missing values, namely 464, and it also had an unnamed column with 2745 missing values. Those two indicators may be symptoms of some problem in the loaded dataset: in fact, at the end of the dataset there are exactly 464 values where all attributes are empty (of the kind: ;;;;;). Moreover, at the end of each row, each final “;” was interpreted as the insertion of a new column, which actually does not exist. For this reason, all those completely missing values and the blank column were deleted.
+After this, the analysis continues with a validation of the symbols and countries: the aim of this section is to verify that every transaction symbol exists in the symbols dataset and that every company country can be mapped in the country dataset. The results were the following:
+-	Missing symbols: 'WF', 'CSIQ', 'TKC', 'UCG', 'AZM', 'HTGC', 'MFG', 'RIGZU', 'RCMT', 'IBE', 'CCAP', 'FNC', 'MONC', 'SAP', 'ARCH', 'AGO.l', 'OBDC', 'VWS';
+-	Missing countries: 'Turkey', 'Taiwan'.
+As it is possible to see, since that were symbols and countries not present in those tables, observations with such values were deleted, in order to preserve referential integrity.
+Another important step in data cleaning involved standardizing the date field and extracting time-based attributes such as day, month, quarter, and year. This transformation was essential for enabling temporal analysis and for constructing the time dimension. Unused or redundant attributes were removed from the final schema to maintain a clean and efficient model aligned with the analytical requirements.
+
+Four dimension tables were then constructed to provide descriptive context to the facts:
+1)	The time dimension was designed for executing temporal analysis and follows a clear hierarchy from day to year through intermediate levels such as month and quarter. This allows flexible aggregation across different time granularities;
+2)	The symbol dimension describes the financial instruments and the companies (including attributes such as sector and industry);
+3)	 The geography dimension captures the spatial aspect of the data, organizing countries into country-wise and regional groupings, allowing geographical comparisons to be executed;
+4)	The transaction type dimension distinguishes between buy, sell and dividend operations, which is crucial for understanding trading behavior.
+
+During the design process, surrogate keys were introduced for all dimensions to ensure stable identifiers that are independent from the source data. This improves both data integrity and performance when joining tables. The final schema follows a classical star structure, where all dimensions are directly connected to the central fact table without relationships between dimensions, preserving simplicity and analytical efficiency.
+
+Once the star schema was constructed, a denormalized dataset was created to facilitate direct querying and visualization. This dataset combines only relevant attributes from the fact and dimension tables into a single structure, enabling rapid computation of business metrics.
+The analytical results derived from this dataset provide several meaningful insights into trading behavior. 
+The first analysis focused on identifying the sectors with the highest number of sell transactions in the United States during 2024. The results show a strong concentration in the technology sector, which significantly outperforms all other sectors in terms of sell activity. This is followed by communication services and financial services.
+A quarter-analysis of total transactions in 2024 reveals a clearly declining trend throughout the year. The first quarter shows the highest level of activity, with almost one thousand transactions, while subsequent quarters show a steady decrease. This pattern may suggest a slowdown in market activity.
+Geographical analysis within the financial services sector highlights the dominance of the United States in terms of traded volume. However, other countries such as Peru and Bermuda have unexpectedly high levels of activity, which may be an indicator of cross-border trading flows. Other significant contributors include China and Canada, although at a lower magnitude.
+The analysis of average transaction size in the second quarter identifies companies with large trade volumes per transaction. Paysafe Limited ranks highest, followed by other firms such as Hangzhou Tigermed Consulting, Alvotech, Arch Capital Group, and CNH Industrial. These results suggest that certain firms experience fewer but significantly larger transactions.
+Finally, the combined industry-region analysis shows that trading activity is heavily concentrated in the Americas across most industries. Semiconductors and software infrastructure emerge as the most active categories, followed by internet-related companies and telecommunications services. Europe and Asia play a secondary but still relevant role, particularly in sectors such as biotechnology and automotive manufacturing.
+
+PART #3
+This Streamlit script builds an interactive dashboard for analyzing financial transactions over time, using a pre-processed denormalized dataset, loaded from a CSV file (fact_enriched.csv) that was created during the previous anlysis. The dataset is read inside a cached function, in order to improve performance, ensuring that the file is not reloaded every time the app reruns. After loading, a proper datetime column is reconstructed by combining year, month, and day fields, which allows the application to perform time-based filtering.
+
+The dashboard is structured around a user-controlled time window. A date range selector lets the user filter the dataset, and all subsequent metrics and visualizations are recalculated based on the chosen time window, ensuring that every KPI and chart reflects only the selected period.
+
+The first graph is dedicated to temporal analysis. Transactions are grouped by date to compute daily volumes, which are then visualized as a line chart. This visualization highlights how trading activity evolves over time and makes it easy to identify spikes in volume. A key insight is extracted by locating the day with the maximum number of transactions, which is then displayed in a narrative format below the chart.
+Below it, some key performance indicators that summarize the trading activity within the selected timeframe were inserted. These include the total number of transactions, the number of BUY and SELL operations, and the number of distinct symbols traded. 
+
+The third part of the dashboard shifts the focus to market composition: the most actively traded symbols, the most represented sectors, and the most represented industries are identified. The symbol analysis highlights the most frequently traded securities, while the sector and industry breakdowns provide a higher-level view of where trading activity is concentrated.
+
+Finally, the dashboard summarizes these findings in a narrative insights section. It identifies the dominant symbol, sector, and industry in terms of total transactions. This provides a concise interpretation of market structure within the selected period.
+
